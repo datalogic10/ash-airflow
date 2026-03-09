@@ -1,0 +1,7 @@
+.git
+.env
+logs/
+*.md
+include/dbt/target/
+include/dbt/logs/
+include/dbt/dbt_packages/
