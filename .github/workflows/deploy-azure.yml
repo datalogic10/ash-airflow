@@ -27,11 +27,19 @@ jobs:
       - name: Login to ACR
         run: az acr login --name ashairflowcr
 
-      - name: Build and push image
-        run: |
-          docker build -t ashairflowcr.azurecr.io/ash-airflow:${{ github.sha }} -t ashairflowcr.azurecr.io/ash-airflow:latest .
-          docker push ashairflowcr.azurecr.io/ash-airflow:${{ github.sha }}
-          docker push ashairflowcr.azurecr.io/ash-airflow:latest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image (with layer caching)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ashairflowcr.azurecr.io/ash-airflow:${{ github.sha }}
+            ashairflowcr.azurecr.io/ash-airflow:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Deploy to Container Apps
         run: |
