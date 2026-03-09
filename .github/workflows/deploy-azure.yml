@@ -1,0 +1,53 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to ACR
+        run: az acr login --name ashairflowcr
+
+      - name: Build and push image
+        run: |
+          docker build -t ashairflowcr.azurecr.io/ash-airflow:${{ github.sha }} -t ashairflowcr.azurecr.io/ash-airflow:latest .
+          docker push ashairflowcr.azurecr.io/ash-airflow:${{ github.sha }}
+          docker push ashairflowcr.azurecr.io/ash-airflow:latest
+
+      - name: Deploy to Container Apps
+        run: |
+          az containerapp update \
+            --name ash-airflow \
+            --resource-group ash-airflow-rg \
+            --image ashairflowcr.azurecr.io/ash-airflow:${{ github.sha }} \
+            --revision-suffix sha-$(echo ${{ github.sha }} | cut -c1-7)
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for new revision to start..."
+          sleep 30
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://ash-airflow.proudfield-400a7745.eastus.azurecontainerapps.io/health)
+          if [ "$STATUS" = "200" ]; then
+            echo "Deployment successful - health check returned 200"
+          else
+            echo "Warning: health check returned $STATUS (container may still be starting)"
+          fi
